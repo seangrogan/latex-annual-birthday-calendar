@@ -1,0 +1,21 @@
+# month, day, event [, year]
+# - Lines starting with # are comments. Blank lines are ignored.
+# - Wrap a field in "double quotes" if it contains a comma.
+month,day,event
+3,21, J.S. Bach (1685)
+1,27,Mozart (1765)
+11,14, Aaron Copland (1900)
+10,7,Yo-Yo Ma (1955)
+2,8, John Williams,1932
+5,14,George Lucas, 1944
+12,8,Steven Spielberg,1946
+7,20,Apollo 11 (1969)
+11,9, Carl Sagan, 1934
+3,20,Fred Rogers,1928
+8,18,Roberto Clemente,1934
+5,25,A New Hope, 1977
+5,21,Empire Strikes Back,1980
+5,25,Return of the Jedi,1983
+11,?,U.S. Thanksgiving (16xx)
+10,?,Canadian Thanksgiving
+5,18,Napoleon & Joséphine, 1804

@@ -1,0 +1,316 @@
+% birthdaycal.sty -- one-page 12-month birthday/anniversary grid.
+% Requires LuaLaTeX. Settings are made with \BDsetup{...} (see birthdays.tex).
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{birthdaycal}[2026/11/01 birthday calendar grid]
+
+\RequirePackage{ifluatex}
+\ifluatex\else
+  \PackageError{birthdaycal}{This document must be compiled with LuaLaTeX,
+    not pdfLaTeX or XeLaTeX. Change the compiler/engine setting in your
+    editor (or run: lualatex birthdays.tex)}{The data file is read with Lua.}
+\fi
+\RequirePackage{tikz}
+\RequirePackage{anyfontsize}
+% datetime gives \newdateformat, \monthname, \THEDAY/\THEMONTH/\THEYEAR,
+% \formatdate{d}{m}{y} for formatting today's (or any) date
+\RequirePackage[nodayofweek]{datetime}% silences size-substitution warnings at fitted sizes
+
+% ------------------------------------------------------------------ settings
+\newif\ifBD@wrap
+\newif\ifBD@fill
+\newif\ifBD@sepheader
+\newif\ifBD@vertical
+\newif\ifBD@bolddays
+
+\pgfkeys{/bdcal/.is family, /bdcal,
+  data/.store in        = \BD@datafile,
+  columns/.store in     = \BD@colsetting,     % 1,2,3,4,6,12 or auto
+  order/.is choice,
+  order/vertical/.code  = \BD@verticaltrue,   % Jan,Feb,Mar run down a column
+  order/horizontal/.code= \BD@verticalfalse,  % Jan,Feb,Mar,Apr run across a row
+  header/.is choice,
+  header/separate/.code = \BD@sepheadertrue,  % month name in its own ruled cell
+  header/inline/.code   = \BD@sepheaderfalse, % month name on top of the same cell
+  header font/.store in = \BD@headerfont,
+  day align/.is choice,
+  day align/center/.code= \def\BD@dayalign{c}, % day number centred on its names
+  day align/top/.code   = \def\BD@dayalign{t}, % day number beside the first name
+  min font size/.code   = \def\BD@minfs{#1},
+  max font size/.code   = \def\BD@maxfs{#1},
+  line spacing/.store in= \BD@linespread,     % baselineskip = this x font size
+  wrap/.is if           = BD@wrap,            % may long names wrap?
+  fill/.is if           = BD@fill,            % stretch rows to fill the page?
+  line width/.store in  = \BD@rulewidth,
+  month names/.code     = \BD@setmonthnames{#1},
+  title/.store in       = \BD@title,
+  title font/.store in  = \BD@titlefont,
+  % -- day numbers
+  bold days/.is if      = BD@bolddays,
+  group sep/.store in   = \BD@groupsep,      % extra space between different days
+  name sep/.store in    = \BD@namesep,       % extra space between names on one day
+  day font/.store in    = \BD@dayfont,       % e.g. \itshape, \color{gray}
+  % -- page header/footer (contents via \lhead \chead \rhead \lfoot \cfoot \rfoot)
+  head font/.store in   = \BD@headfont,
+  foot font/.store in   = \BD@footfont,
+  head rule/.store in   = \BD@headrule,      % thickness of a rule under the header
+  foot rule/.store in   = \BD@footrule,      % thickness of a rule above the footer
+  head sep/.store in    = \BD@headsep,       % space between header and calendar
+  foot sep/.store in    = \BD@footsep,       % space between calendar and footer
+}
+\def\BD@setmonthnames#1{%
+  \def\BD@tmpn{0}%
+  \foreach \BD@n in {#1}{%
+    \pgfmathtruncatemacro\BD@tmpn{\BD@tmpn+1}%
+    \global\expandafter\let\csname BD@mname\BD@tmpn\endcsname\BD@n
+    \xdef\BD@tmpn{\BD@tmpn}}}
+\newcommand\BDsetup[1]{\pgfkeys{/bdcal,#1}}
+
+\BDsetup{
+  data = birthdays.csv, columns = 4, order = vertical, header = separate,
+  day align = center,
+  header font = \bfseries, min font size = 5pt, max font size = 24pt,
+  line spacing = 1.2, wrap = false, fill = true, line width = 0.6pt,
+  month names = {January,February,March,April,May,June,July,August,
+                 September,October,November,December},
+  title = {}, title font = \bfseries\Large,
+  bold days = false, day font = {}, group sep = 0.25em, name sep = 0pt,
+  % header/footer default to the title's look; change head/foot font to differ
+  head font = \BD@titlefont, foot font = \BD@titlefont,
+  head rule = 0pt, foot rule = 0pt, head sep = 1em, foot sep = 1em,
+}
+
+% ------------------------------------------------------------------ header / footer
+% Same names as fancyhdr, so \lfoot{Sean Grogan, PhD}\cfoot{\thepage} works.
+% Use \\ inside one for several lines. Don't load fancyhdr as well.
+\def\BD@lh{}\def\BD@ch{}\def\BD@rh{}\def\BD@lf{}\def\BD@cf{}\def\BD@rf{}
+\DeclareRobustCommand\lhead[2][]{\def\BD@lh{#2}}
+\DeclareRobustCommand\chead[2][]{\def\BD@ch{#2}}
+\DeclareRobustCommand\rhead[2][]{\def\BD@rh{#2}}
+\DeclareRobustCommand\lfoot[2][]{\def\BD@lf{#2}}
+\DeclareRobustCommand\cfoot[2][]{\def\BD@cf{#2}}
+\DeclareRobustCommand\rfoot[2][]{\def\BD@rf{#2}}
+% \BD@headline{pos t/b}{font}{left}{centre}{right}: centre part is truly centred
+\def\BD@headline#1#2#3#4#5{%
+  \hbox to \linewidth{#2%
+    \rlap{\begin{tabular}[#1]{@{}l@{}}#3\end{tabular}}\hss
+    \begin{tabular}[#1]{@{}c@{}}#4\end{tabular}\hss
+    \llap{\begin{tabular}[#1]{@{}r@{}}#5\end{tabular}}}}
+\newbox\BD@headbox \newbox\BD@footbox \newbox\BD@titlebox
+\newif\ifBD@hashead \newif\ifBD@hasfoot
+
+% ------------------------------------------------------------------ registers
+\newdimen\BD@W  \newdimen\BD@H  \newdimen\BD@s
+\newdimen\BD@lo \newdimen\BD@hi \newdimen\BD@best
+\newdimen\BD@cellw \newdimen\BD@namew \newdimen\BD@dayw \newdimen\BD@gap
+\newdimen\BD@padx \newdimen\BD@pady \newdimen\BD@hang \newdimen\BD@hh
+\newdimen\BD@total \newdimen\BD@rowmax \newdimen\BD@widest \newdimen\BD@extra
+\newdimen\BD@y \newdimen\BD@ya \newdimen\BD@yb \newdimen\BD@x
+\newcount\BD@cols \newcount\BD@rows \newcount\BD@bestcols
+\newbox\BD@box \newdimen\BD@wtmp
+\newif\ifBD@fits
+
+% ------------------------------------------------------------------ font + metrics at size \BD@s
+\def\BD@setfont{%
+  \fontsize{\the\BD@s}{\the\dimexpr\BD@linespread\BD@s\relax}\selectfont}
+\def\BD@metrics{% call inside a group after \BD@setfont
+  \BD@padx=.4em \BD@pady=.25em \BD@gap=.55em \BD@hang=.8em
+  \BD@dayw=0pt % room for two of the widest digit
+  \@for\BD@dg:=0,1,2,3,4,5,6,7,8,9,?\do{\settowidth\BD@wtmp{\BD@daystyle\BD@dg\BD@dg}%
+    \ifdim\BD@wtmp>\BD@dayw \BD@dayw=\BD@wtmp\fi}%
+  \BD@cellw=\dimexpr\BD@W/\BD@cols\relax
+  \BD@namew=\dimexpr\BD@cellw-2\BD@padx-\BD@dayw-\BD@gap\relax
+  \ifBD@sepheader
+    \BD@hh=\dimexpr\ht\strutbox+\dp\strutbox+2\BD@pady\relax
+  \else
+    \BD@hh=\dimexpr\ht\strutbox+\dp\strutbox+\BD@pady\relax
+  \fi}
+
+% ------------------------------------------------------------------ cell contents
+% \BDXgroup{day}{entries}: day number centred on its block of names, or
+% level with the first name (day align = top)
+\def\BDXgroup#1#2{%
+  \BD@groupskip % nothing before the first group, \vskip group sep after that
+  \def\BD@groupskip{\vskip\BD@groupsep}%
+  \def\BD@nameskip{}%
+  \hbox{%
+    \parbox[\BD@dayalign]{\BD@dayw}{\raggedleft\strut{\BD@daystyle#1}\strut}%
+    \hskip\BD@gap
+    \parbox[\BD@dayalign]{\BD@namew}{\parindent0pt\raggedright\BD@quiet
+      \everypar{\hangindent\BD@hang\hangafter1\strut}#2}}}
+\def\BD@daystyle{\ifBD@bolddays\bfseries\fi\BD@dayfont}
+\def\BDXentry#1{\BD@nameskip\def\BD@nameskip{\vskip\BD@namesep}#1\strut\par}
+\let\BD@quiet\relax
+\def\BD@body#1{\vbox{\offinterlineskip\def\BD@groupskip{}%
+  \csname BDXbody#1\endcsname}}
+\def\BD@month#1#2{% #1 row, #2 col (0-based) -> \BD@m
+  \ifBD@vertical
+    \edef\BD@m{\the\numexpr#2*\BD@rows+#1+1\relax}%
+  \else
+    \edef\BD@m{\the\numexpr#1*\BD@cols+#2+1\relax}%
+  \fi}
+
+% ------------------------------------------------------------------ does size \BD@s fit with \BD@cols columns?
+\def\BD@trial{%
+  \begingroup
+    \BD@setfont\BD@metrics
+    % trial sizes may overflow; that's the point, so don't warn
+    % (\parbox calls \sloppy, which resets \hfuzz, hence the hook)
+    \def\BD@quiet{\hfuzz=\maxdimen}%
+    \global\BD@total=0pt
+    \BD@rows=\numexpr12/\BD@cols\relax
+    \foreach \BD@r in {1,...,\BD@rows}{%
+      \global\BD@rowmax=0pt
+      \foreach \BD@c in {1,...,\BD@cols}{%
+        \BD@month{(\BD@r-1)}{(\BD@c-1)}%
+        \setbox\BD@box=\BD@body{\BD@m}%
+        \ifdim\dimexpr\ht\BD@box+\dp\BD@box>\BD@rowmax
+          \global\BD@rowmax=\dimexpr\ht\BD@box+\dp\BD@box\relax\fi}%
+      \expandafter\xdef\csname BD@rowh\BD@r\endcsname{\the\BD@rowmax}%
+      \global\advance\BD@total by \dimexpr\BD@hh+\BD@rowmax+2\BD@pady\relax}%
+    % widest unbreakable chunk must fit on a (hanging) name line
+    \global\BD@widest=0pt
+    \ifBD@wrap
+      \def\BDXword##1{\settowidth\BD@wtmp{##1}%
+        \ifdim\BD@wtmp>\BD@widest\global\BD@widest=\BD@wtmp\fi}%
+      \BDXallwords
+      \advance\BD@widest by \BD@hang
+    \else
+      \def\BDXgroup##1##2{##2}%
+      \def\BDXentry##1{\settowidth\BD@wtmp{##1}%
+        \ifdim\BD@wtmp>\BD@widest\global\BD@widest=\BD@wtmp\fi}%
+      \foreach \BD@k in {1,...,12}{\csname BDXbody\BD@k\endcsname}%
+    \fi
+    \global\BD@fitstrue
+    \ifdim\BD@total>\BD@H \global\BD@fitsfalse\fi
+    \ifdim\BD@widest>\BD@namew \global\BD@fitsfalse\fi
+  \endgroup}
+
+% ------------------------------------------------------------------ binary search on font size
+\def\BD@search{% result in \BD@best for current \BD@cols
+  \BD@lo=\BD@minfs\relax \BD@hi=\BD@maxfs\relax
+  \BD@s=\BD@hi \BD@trial
+  \ifBD@fits \BD@best=\BD@hi
+  \else
+    \BD@s=\BD@lo \BD@trial
+    \ifBD@fits
+      \BD@bisect
+      \BD@best=\BD@lo
+    \else
+      \ifBD@wrap
+        \BD@best=-1pt % does not fit even at the minimum size
+      \else % can't fit without wrapping: allow wrapping and try again
+        \BD@wraptrue \BD@search
+      \fi
+    \fi
+  \fi}
+\def\BD@bisect{%
+  \ifdim\dimexpr\BD@hi-\BD@lo\relax>0.05pt
+    \BD@s=\dimexpr(\BD@lo+\BD@hi)/2\relax
+    \BD@trial
+    \ifBD@fits \BD@lo=\BD@s \else \BD@hi=\BD@s \fi
+    \expandafter\BD@bisect
+  \fi}
+
+% ------------------------------------------------------------------ main command
+\newcommand\BirthdayCalendar[1][]{%
+  \begingroup
+  \BDsetup{#1}%
+  \directlua{require("birthdaycal").load("\luaescapestring{\BD@datafile}")}%
+  \pagestyle{empty}\thispagestyle{empty}%
+  \parindent0pt \parskip0pt
+  \BD@W=\linewidth
+  \BD@H=\dimexpr\textheight-2pt\relax
+  % header, footer and title take their space first; the calendar gets the rest
+  \ifx\BD@ch\@empty \let\BD@ch\BD@title \def\BD@title{}\fi % title = centre header
+  \BD@hasheadfalse \BD@hasfootfalse
+  \ifx\BD@lh\@empty\ifx\BD@ch\@empty\ifx\BD@rh\@empty\else\BD@hasheadtrue\fi
+    \else\BD@hasheadtrue\fi\else\BD@hasheadtrue\fi
+  \ifx\BD@lf\@empty\ifx\BD@cf\@empty\ifx\BD@rf\@empty\else\BD@hasfoottrue\fi
+    \else\BD@hasfoottrue\fi\else\BD@hasfoottrue\fi
+  \ifBD@hashead
+    \setbox\BD@headbox=\vbox{\offinterlineskip
+      \BD@headline{t}{\BD@headfont}{\BD@lh}{\BD@ch}{\BD@rh}%
+      \ifdim\BD@headrule>0pt \vskip3pt\hrule height\BD@headrule\fi
+      {\BD@headfont\vskip\BD@headsep}}%
+    \advance\BD@H by -\dimexpr\ht\BD@headbox+\dp\BD@headbox\relax
+  \fi
+  \ifBD@hasfoot
+    \setbox\BD@footbox=\vbox{\offinterlineskip
+      {\BD@footfont\vskip\BD@footsep}%
+      \ifdim\BD@footrule>0pt \hrule height\BD@footrule\vskip3pt\fi
+      \BD@headline{b}{\BD@footfont}{\BD@lf}{\BD@cf}{\BD@rf}}%
+    \advance\BD@H by -\dimexpr\ht\BD@footbox+\dp\BD@footbox\relax
+  \fi
+  \ifx\BD@title\@empty\else
+    \setbox\BD@titlebox=\vbox{\centering\BD@titlefont\BD@title\par\vskip1em}%
+    \advance\BD@H by -\dimexpr\ht\BD@titlebox+\dp\BD@titlebox\relax
+  \fi
+  % choose columns (and font size)
+  \def\BD@auto{auto}%
+  \ifx\BD@colsetting\BD@auto
+    \BD@bestcols=4 \dimen2=-2pt \def\BD@bestwrap{false}
+    \foreach \BD@try in {4,3,6,2}{%
+      \BD@cols=\BD@try\relax \BD@search
+      \ifdim\BD@best>\dimen2 \global\dimen2=\BD@best \global\BD@bestcols=\BD@try
+        \xdef\BD@bestwrap{\ifBD@wrap true\else false\fi}\fi}%
+    \BD@cols=\BD@bestcols \BD@best=\dimen2
+    \csname BD@wrap\BD@bestwrap\endcsname % the search may have switched wrapping on
+  \else
+    \BD@cols=\BD@colsetting\relax \BD@search
+  \fi
+  \ifdim\BD@best<0pt
+    \PackageWarning{birthdaycal}{Calendar does not fit even at
+      \BD@minfs; lower 'min font size' or enlarge the page}%
+    \BD@best=\BD@minfs\relax
+  \fi
+  \BD@rows=\numexpr12/\BD@cols\relax
+  \typeout{birthdaycal: \the\BD@cols\space columns x \the\BD@rows\space rows,
+    font size \the\BD@best}%
+  % final measurement at the chosen size
+  \BD@s=\BD@best \BD@trial
+  \ifBD@fill
+    \BD@extra=\dimexpr(\BD@H-\BD@total)/\BD@rows\relax
+    \ifdim\BD@extra<0pt \BD@extra=0pt\fi
+  \else \BD@extra=0pt \fi
+  \setbox\BD@box=\hbox{\BD@setfont\BD@metrics\BD@draw}%
+  \par\nointerlineskip
+  \vbox to \dimexpr\textheight-2pt\relax{\offinterlineskip
+    \ifBD@hashead\box\BD@headbox\fi
+    \ifx\BD@title\@empty\else\box\BD@titlebox\fi
+    \box\BD@box
+    \vfil
+    \ifBD@hasfoot\box\BD@footbox\fi}%
+  \par
+  \endgroup}
+
+% ------------------------------------------------------------------ drawing
+\def\BD@draw{%
+  \begin{tikzpicture}[x=1pt,y=1pt,line width=\BD@rulewidth,
+      every node/.style={inner sep=0pt,outer sep=0pt,anchor=north west}]
+    \global\BD@y=0pt
+    \foreach \BD@r in {1,...,\BD@rows}{%
+      % row height = tallest month body in this row (measured in \BD@trial;
+      % can't measure here because TikZ uses \nullfont outside nodes)
+      \global\BD@rowmax=\csname BD@rowh\BD@r\endcsname\relax
+      \global\BD@ya=\dimexpr\BD@y-\BD@hh\relax               % header bottom
+      \global\BD@yb=\dimexpr\BD@ya-\BD@rowmax-2\BD@pady-\BD@extra\relax % row bottom
+      \foreach \BD@c in {1,...,\BD@cols}{%
+        \BD@month{(\BD@r-1)}{(\BD@c-1)}%
+        \BD@x=\dimexpr\BD@cellw*(\BD@c-1)+\BD@padx\relax
+        \node at (\the\BD@x,\the\dimexpr\BD@y-\BD@pady\relax)
+          {\parbox{\dimexpr\BD@cellw-2\BD@padx}{\BD@headerfont\strut
+             \csname BD@mname\BD@m\endcsname}};
+        \node at (\the\BD@x,\the\dimexpr\BD@ya-\BD@pady\relax) {\BD@body{\BD@m}};
+      }%
+      \ifBD@sepheader \draw (0,\the\BD@ya) -- (\the\BD@W,\the\BD@ya);\fi
+      \draw (0,\the\BD@yb) -- (\the\BD@W,\the\BD@yb);
+      \global\BD@y=\BD@yb
+    }%
+    \draw (0,0) -- (\the\BD@W,0);
+    \foreach \BD@c in {0,...,\BD@cols}{%
+      \draw (\the\dimexpr\BD@c\BD@cellw\relax,0) -- (\the\dimexpr\BD@c\BD@cellw\relax,\the\BD@y);}
+    \pgfresetboundingbox
+    \useasboundingbox (0,0) rectangle (\the\BD@W,\the\BD@y);
+  \end{tikzpicture}}
+
+\endinput

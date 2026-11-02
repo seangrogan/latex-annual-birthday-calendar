@@ -1,0 +1,82 @@
+% !TEX program = lualatex
+% Birthday calendar -- compile with:  lualatex birthdays.tex
+% Edit the dates in birthdays.csv; edit the layout below.
+\documentclass{article}
+
+% ---- Page size --------------------------------------------------------------
+% Any geometry options work. Examples:
+%   letterpaper, landscape          (the original)
+%   a4paper, landscape
+%   legalpaper, portrait
+%   paperwidth=11in, paperheight=17in      (tabloid / custom)
+\usepackage[letterpaper, landscape, margin=0.5in]{geometry}
+
+% ---- Font -------------------------------------------------------------------
+\usepackage{fontspec}
+\IfFontExistsTF{Georgia}
+  {\setmainfont{Georgia}}
+  {\setmainfont{TeX Gyre Pagella}[Numbers=OldStyle]}
+
+\usepackage{birthdaycal}
+
+% ---- Layout -----------------------------------------------------------------
+\BDsetup{
+  data          = birthdays.csv,
+  columns       = 4,        % 4 -> 4x3 grid. Also 2, 3, 6, or auto (picks the
+                               %   column count that allows the largest text)
+  order         = horizontal,  % vertical:   Jan Feb Mar stacked down column 1
+                               % horizontal: Jan Feb Mar Apr across row 1
+  header        = separate,    % separate: month name in its own ruled cell
+                               % inline:   month name at the top of the same cell
+  bold days     = true,        % true: bold day numbers
+  % day font    = \itshape,    % any other styling for the day numbers
+  day align     = center,      % center: day number centred beside all its names
+                               % top:    day number beside the first name only
+  max font size = 24pt,        % text is auto-sized up to this
+  min font size = 5pt,
+  wrap          = false,       % false: largest size at which no name wraps (falls
+                               %   back to wrapping if that can't fit)
+                               % true:  allow long names to wrap for bigger text
+  fill          = true,        % stretch rows to fill the page height
+  title       = {Birthdays \& Anniversaries},
+  % --- page header / footer styling (contents are set below)
+  % The title is the centre of the header row (unless \chead is set), and by
+  % default every header/footer slot uses the title's look.
+  title font    = \bfseries\Large,
+  % head font   = \small,     % only if the header should differ from the title
+  % foot font   = \small\itshape,
+  head rule     = 0pt,        % e.g. 0.4pt for a line under the header
+  foot rule     = 0pt,        % e.g. 0.4pt for a line above the footer
+  head sep      = 1em,        % gap between header and calendar
+  foot sep      = 1em,        % gap between calendar and footer
+  group sep = 0.1em,         % extra space between different days (0pt = none)
+  name sep  = 0pt,            % extra space between names on the same day
+  line width = 0.6pt,         % width of the lines separating the cells
+  % month names = {janvier,février,mars,avril,mai,juin,juillet,août, septembre,octobre,novembre,décembre}, % français
+  % month names = {Januar,Februar,März,April,Mai,Juni,Juli,August,September,Oktober,November,Dezember}, % Deutsch
+  % month names = {enero, febrero, marzo, abril, mayo, junio, julio, agosto, septiembre, octubre, noviembre, diciembre}, % Español
+}
+
+% ---- Header / footer ------------------------------------------------------
+% Left / centre / right slots at the top (\lhead \chead \rhead) and bottom
+% (\lfoot \cfoot \rfoot). Leave them out or empty and no space is used.
+% Use \\ for more than one line; per-slot styling also works, e.g. \rhead{\textit{x}}.
+%
+% Dates (datetime package): define a format once, then use it anywhere.
+%   \FooterDate\today                -> November 2026
+%   \FooterDate\formatdate{5}{3}{1990} -> March 1990   (any date: day, month, year)
+% Building blocks: \THEDAY \THEMONTH \THEYEAR \monthname[\THEMONTH]
+%   \shortmonthname[\THEMONTH] \twodigit{\THEDAY} \ordinal{DAY}
+% I usually use this to denote the last time I updated a the document
+\newdateformat{FooterDate}{\monthname[\THEMONTH] \THEYEAR}
+\newdateformat{ISODate}{\THEYEAR-\twodigit{\THEMONTH}-\twodigit{\THEDAY}}
+
+%\lhead{}      \chead{}     \rhead{}
+%\lfoot{}      \cfoot{}     
+\rfoot{\FooterDate\today}
+
+
+\begin{document}
+\BirthdayCalendar
+% One-off overrides also work:  \BirthdayCalendar[order=horizontal, columns=3]
+\end{document}
