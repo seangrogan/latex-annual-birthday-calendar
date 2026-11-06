@@ -4,7 +4,7 @@ I have created this Latex template to help manage a printable birthday calendar 
 
 ![Example](example.png)
 
-The calendar takes a CSV input where each line is a person or event, in any order. Entries are sorted by day, and several entries on the same day share one day number.
+The calendar takes a CSV input where each line is a person or event, in any order. Entries are automatically sorted by day, and several entries on the same day share one day number.
 
 I attemped to set up so the template finds the largest font size that fits every month on one page. Columns are always equal width. 
 
@@ -12,7 +12,7 @@ Added a paramter for other paper sizes: letter, A4, legal, tabloid or a custom s
 
 The grid can be manually set to 4×3, 3×4, 2×6 or 6×2. There is also a `columns = auto` picks whichever grid allows the largest text.
 
-Month order can be altared or allow for other languages. The order can be changed so the months are down the columns (Jan–Mar in column 1) or across the rows (Jan–Apr in row 1). The month names can be overriden with 
+Month order can be altared to allow for other languages. The order can be changed so the months are down the columns (Jan–Mar in column 1) or across the rows (Jan–Apr in row 1). The month names can be overriden with 
 
 If you're not sure about the day of month for whatever reason, use a `?` as the day. Those entries are listed at the end of their month.
 
@@ -41,19 +41,19 @@ Speficially needs **LuaLaTeX.**
 
 ```csv
 month,day,event
-3,5,Sean (1990)
-Mar,17,Patrick O'Neil (1985)
-5,4,Mandy Harrop (1989)
-5,4,Mr. & Mrs. Harrop (1985)
-11,?,Zoe
+10,7,Yo-Yo Ma (1955)
+2,8, John Williams,1932
+5,14,George Lucas, 1944
 ```
 
 | Column | Accepts |
 |---|---|
 | `month` | `1`–`12`, or a name or abbreviation (`Mar`, `March`) |
-| `day` | `1`–`31`, or `?` if you're not sure. `?` entries go at the end of the month, grouped together. |
-| `event` | Any text. Write the year in parentheses yourself, e.g. `Sean (1990)`, or use the optional 4th column. |
+| `day` | Any integer greater than or equal to `0`, or `?` if you're not sure. `?` entries go at the end of the month, grouped together. Uness you put a day greater than 99|
+| `event` | Any text. Write the year in parentheses yourself, e.g. `Yo-Yo Ma (1955)`, or use the optional 4th column. |
 | `year` *(optional)* | If present, it's added as ` (year)`. Free text, so `198x` or `1966?` are fine. |
+
+typically, when year is uncertain, I will denote a year with an `x`, e.g. `198x`. 
 
 - Order doesn't matter.
 - Lines starting with `#` are comments. Blank lines are ignored.
@@ -73,6 +73,12 @@ Page size is set with the `geometry` line in `birthdays.tex`:
 % paperwidth=17in, paperheight=11in, margin=0.5in
 ```
 
+A favorite setting of mine is on a 5"×7" card (about an A5)
+
+```latex
+\usepackage[paperwidth=7in, paperheight=5in, margin=0.1in]{geometry}
+```
+
 ### Layout options
 
 Everything else goes in `\BDsetup{...}`:
@@ -80,21 +86,19 @@ Everything else goes in `\BDsetup{...}`:
 ```latex
 \BDsetup{
   data      = birthdays.csv,
-  columns   = 4,
-  order     = vertical,
+  columns   = 4, % I think 4 looks the nicest but sometimes auto can be a good option too
+  order     = horizontal,
   bold days = true,
   title     = {Birthdays \& Anniversaries},
 }
 ```
-
-To change settings for one run only, put them in the optional argument: `\BirthdayCalendar[order=horizontal, columns=3]`.
 
 #### Grid and order
 
 | Key | Default | Values / meaning |
 |---|---|---|
 | `columns` | `4` | `2`, `3`, `4`, `6`, or `auto` (picks the grid that allows the largest text) |
-| `order` | `vertical` | `vertical`: Jan, Feb, Mar run down column 1. `horizontal`: Jan–Apr run across row 1. |
+| `order` | `horizontal` | `vertical`: Jan, Feb, Mar run down column 1. `horizontal`: Jan–Apr run across row 1. |
 | `header` | `separate` | `separate`: the month name has its own ruled cell. `inline`: the month name sits at the top of the month's cell. |
 | `header font` | `\bfseries` | Style of the month names |
 | `month names` | English | Comma list of 12 names, e.g. `{janvier,février,...}` |
@@ -135,13 +139,14 @@ To change settings for one run only, put them in the optional argument: `\Birthd
 The commands have the same names as in `fancyhdr`. Don't load `fancyhdr` as well.
 
 ```latex
-\lhead{Grogan Family}      \chead{}             \rhead{}
-\lfoot{Sean Grogan, PhD}   \cfoot{\thepage}     \rfoot{\FooterDate\today}
+\lhead{}      \chead{}     \rhead{}
+\lfoot{}      \cfoot{}     \rfoot{\FooterDate\today}
 ```
 
 - Slots you leave empty take no space. When you do use a header or footer, the calendar shrinks to make room.
 - The centre slot is truly centred, whatever is on the left and right.
 - Use `\\` inside a slot for more than one line.
+- I typically put the date somewere so I know the vintage of the creation
 
 ### Dates
 

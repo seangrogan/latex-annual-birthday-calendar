@@ -20,8 +20,13 @@
 \usepackage{birthdaycal}
 
 % ---- Layout -----------------------------------------------------------------
+
+\IfFileExists{birthdays.csv}
+{\def\BDdatafile{birthdays.csv}}
+{\def\BDdatafile{example.csv}}
+
 \BDsetup{
-  data          = birthdays.csv,
+  data          = \BDdatafile,
   columns       = 4,        % 4 -> 4x3 grid. Also 2, 3, 6, or auto (picks the
                                %   column count that allows the largest text)
   order         = horizontal,  % vertical:   Jan Feb Mar stacked down column 1

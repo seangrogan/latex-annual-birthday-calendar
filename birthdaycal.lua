@@ -84,7 +84,7 @@ function M.load(filename)
       local f = split_csv(line)
       local m, d = parse_month(f[1] or ""), tonumber(f[2] or "")
       if (f[2] or "") == "?" then d = UNKNOWN_DAY end  -- unsure of the date
-      if m and d and ((d >= 1 and d <= 31) or f[2] == "?") and (f[3] or "") ~= "" then
+      if m and d and (d >= 0 or f[2] == "?") and (f[3] or "") ~= "" then
         local text = f[3]
         if f[4] and f[4] ~= "" then text = text .. " (" .. f[4] .. ")" end
         order = order + 1
